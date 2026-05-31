@@ -88,7 +88,11 @@ mod tests {
     #[test]
     fn captures_surrounding_context_and_lang() {
         let root = tempfile::tempdir().unwrap();
-        write(root.path(), "src/a.rs", b"line1\nline2\n// @todo: here\nline4\nline5\n");
+        write(
+            root.path(),
+            "src/a.rs",
+            b"line1\nline2\n// @todo: here\nline4\nline5\n",
+        );
         let found = scan(root.path());
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].lang, "rs");
