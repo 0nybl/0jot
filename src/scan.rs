@@ -6,9 +6,12 @@ use std::path::Path;
 pub struct Found {
     pub marker: Marker,
     pub file: String,
+    pub context: String,
+    pub lang: String,
 }
 
 const SKIP_DIRS: [&str; 3] = [".git", "target", "node_modules"];
+const CONTEXT: usize = 3;
 
 pub fn scan(root: &Path) -> Vec<Found> {
     let ignore = Ignore::load(root);
@@ -49,10 +52,22 @@ fn walk(root: &Path, dir: &Path, ignore: &Ignore, out: &mut Vec<Found>) {
             if ignore.is_ignored(&rel) {
                 continue;
             }
+            let file_lines: Vec<&str> = text.lines().collect();
+            let lang = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_string();
             for m in marker::parse(&text) {
+                let idx = m.line - 1;
+                let start = idx.saturating_sub(CONTEXT);
+                let end = (idx + CONTEXT + 1).min(file_lines.len());
+                let context = file_lines[start..end].join("\n");
                 out.push(Found {
                     marker: m,
                     file: rel.clone(),
+                    context,
+                    lang: lang.clone(),
                 });
             }
         }
@@ -68,6 +83,19 @@ mod tests {
         let p = dir.join(rel);
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, body).unwrap();
+    }
+
+    #[test]
+    fn captures_surrounding_context_and_lang() {
+        let root = tempfile::tempdir().unwrap();
+        write(root.path(), "src/a.rs", b"line1\nline2\n// @todo: here\nline4\nline5\n");
+        let found = scan(root.path());
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].lang, "rs");
+        // 3 lines of context on each side of line 3 (the marker)
+        assert!(found[0].context.contains("line1"));
+        assert!(found[0].context.contains("// @todo: here"));
+        assert!(found[0].context.contains("line5"));
     }
 
     #[test]

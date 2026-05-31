@@ -84,6 +84,8 @@ mod tests {
                 line: 1,
             },
             file: "src/x.rs".into(),
+            context: String::new(),
+            lang: "rs".into(),
         }
     }
 
