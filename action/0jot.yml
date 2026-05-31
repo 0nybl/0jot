@@ -1,0 +1,53 @@
+name: 0jot
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  todo-to-issue:
+    runs-on: ubuntu-latest
+    env:
+      TODO_LABEL: todo
+    steps:
+      - name: Mint app token
+        id: app
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.JOT_APP_ID }}
+          private-key: ${{ secrets.JOT_APP_PRIVATE_KEY }}
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install 0jot
+        run: cargo install --git https://github.com/0nybl/0jot --tag v0.1.0 jot
+
+      - name: Fetch open todo issues
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          gh label create "$TODO_LABEL" --color 1d76db \
+            --description "Tracked @todo marker" --force >/dev/null 2>&1 || true
+          gh issue list --label "$TODO_LABEL" --state open \
+            --json number,body --limit 1000 > issues.json
+
+      - name: Plan
+        run: 0jot plan --repo . --issues issues.json --out actions.json
+
+      - name: Apply plan
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          jq -c '.create[]' actions.json | while read -r item; do
+            title="$(jq -r '.title' <<<"$item")"
+            jq -r '.body' <<<"$item" > /tmp/body.md
+            gh issue create --title "$title" --label "$TODO_LABEL" --body-file /tmp/body.md
+          done
+          jq -r '.close[].number' actions.json | while read -r num; do
+            [ -n "$num" ] && gh issue close "$num" \
+              --comment "Resolved: @todo marker removed from code."
+          done
