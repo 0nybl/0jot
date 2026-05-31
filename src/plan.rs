@@ -31,6 +31,9 @@ pub fn render_body(found: &Found, fp: &str) -> String {
         b.push_str(&found.marker.body);
         b.push_str("\n\n");
     }
+    if !found.context.is_empty() {
+        b.push_str(&format!("```{}\n{}\n```\n\n", found.lang, found.context));
+    }
     b.push_str(&format!(
         "---\nFound at `{}:{}`\n\n<!-- 0jot: {} -->\n",
         found.file, found.marker.line, fp
@@ -84,6 +87,8 @@ mod tests {
                 line: 1,
             },
             file: "src/x.rs".into(),
+            context: String::new(),
+            lang: "rs".into(),
         }
     }
 
@@ -138,8 +143,11 @@ mod tests {
         let mut fnd = found("t");
         fnd.marker.body = "line one".into();
         fnd.marker.line = 42;
+        fnd.context = "let a = 1;\nlet b = 2;".into();
         let body = render_body(&fnd, "abcdef012345");
         assert!(body.contains("line one"));
+        assert!(body.contains("```rs"));
+        assert!(body.contains("let a = 1;"));
         assert!(body.contains("Found at `src/x.rs:42`"));
         assert!(body.contains("<!-- 0jot: abcdef012345 -->"));
     }
