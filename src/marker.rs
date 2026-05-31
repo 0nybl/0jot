@@ -7,6 +7,10 @@ pub struct Marker {
 
 const PREFIXES: [&str; 6] = ["//", "/*", "#", "*", ";", "--"];
 
+// @todo: support block-comment body capture
+//   Markers inside `/* ... */` blocks only capture the title line; body lines
+//   at the same indent are not collected. Extend the parser to handle them.
+
 /// Returns the text following a leading comment prefix, or None if the line is
 /// not a comment. The returned slice keeps the comment's internal indentation.
 fn comment_rest(line: &str) -> Option<&str> {
