@@ -7,10 +7,6 @@ pub struct Marker {
 
 const PREFIXES: [&str; 6] = ["//", "/*", "#", "*", ";", "--"];
 
-// @todo: support block-comment body capture
-//   Markers inside `/* ... */` blocks only capture the title line; body lines
-//   at the same indent are not collected. Extend the parser to handle them.
-
 /// Returns the text following a leading comment prefix, or None if the line is
 /// not a comment. The returned slice keeps the comment's internal indentation.
 fn comment_rest(line: &str) -> Option<&str> {
@@ -32,6 +28,47 @@ pub fn parse(text: &str) -> Vec<Marker> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < lines.len() {
+        // --- block comment marker: line starts with `/*` and contains `@todo:` ---
+        if let Some(rest) = lines[i].trim_start().strip_prefix("/*") {
+            if let Some(after) = rest.trim_start().strip_prefix("@todo:") {
+                let (title_part, closed_here) = match after.find("*/") {
+                    Some(pos) => (&after[..pos], true),
+                    None => (after, false),
+                };
+                let title = title_part.trim().to_string();
+                if !title.is_empty() {
+                    let mut body_lines = Vec::new();
+                    let mut j = i + 1;
+                    if !closed_here {
+                        while j < lines.len() {
+                            let line = lines[j];
+                            let (content, closing) = match line.find("*/") {
+                                Some(pos) => (&line[..pos], true),
+                                None => (line, false),
+                            };
+                            let c = content.trim_start();
+                            let c = c.strip_prefix('*').unwrap_or(c).trim();
+                            if !c.is_empty() {
+                                body_lines.push(c.to_string());
+                            }
+                            j += 1;
+                            if closing {
+                                break;
+                            }
+                        }
+                    }
+                    out.push(Marker {
+                        title,
+                        body: body_lines.join("\n"),
+                        line: i + 1,
+                    });
+                    i = j;
+                    continue;
+                }
+            }
+        }
+
+        // --- line comment marker (existing behavior) ---
         let Some(rest) = comment_rest(lines[i]) else {
             i += 1;
             continue;
@@ -117,5 +154,32 @@ mod tests {
         assert_eq!(m.len(), 2);
         assert_eq!(m[1].title, "two");
         assert_eq!(m[1].line, 3);
+    }
+
+    #[test]
+    fn block_comment_marker_with_body() {
+        let src = "/* @todo: block title\n * body one\n * body two\n */\n";
+        let m = parse(src);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].title, "block title");
+        assert_eq!(m[0].body, "body one\nbody two");
+        assert_eq!(m[0].line, 1);
+    }
+
+    #[test]
+    fn single_line_block_marker() {
+        let m = parse("/* @todo: one liner */\n");
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].title, "one liner");
+        assert_eq!(m[0].body, "");
+    }
+
+    #[test]
+    fn block_marker_title_strips_trailing_close() {
+        // closing on the title line, no body
+        let m = parse("/* @todo: tight */\ncode\n");
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].title, "tight");
+        assert_eq!(m[0].body, "");
     }
 }
