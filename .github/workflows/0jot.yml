@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install 0jot
-        run: cargo install --git https://github.com/0nybl/0jot --tag v0.1.1 --bin 0jot jot
+        run: cargo install --git https://github.com/0nybl/0jot --tag v0.1.2 --bin 0jot jot
 
       - name: Fetch open todo issues
         env:
