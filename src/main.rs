@@ -26,7 +26,11 @@ enum Command {
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Command::Plan { repo, issues: issues_path, out } => {
+        Command::Plan {
+            repo,
+            issues: issues_path,
+            out,
+        } => {
             let found = scan::scan(&repo);
             let existing =
                 issues::parse(&fs::read_to_string(&issues_path).expect("read issues.json"));

@@ -78,7 +78,11 @@ mod tests {
 
     fn found(title: &str) -> Found {
         Found {
-            marker: Marker { title: title.into(), body: String::new(), line: 1 },
+            marker: Marker {
+                title: title.into(),
+                body: String::new(),
+                line: 1,
+            },
             file: "src/x.rs".into(),
         }
     }
@@ -95,16 +99,28 @@ mod tests {
 
     #[test]
     fn close_for_removed_marker() {
-        let existing = vec![ExistingIssue { number: 7, fingerprint: fingerprint("gone") }];
+        let existing = vec![ExistingIssue {
+            number: 7,
+            fingerprint: fingerprint("gone"),
+        }];
         let actions = plan(&[], &existing);
-        assert_eq!(actions.close, vec![Close { number: 7, fingerprint: fingerprint("gone") }]);
+        assert_eq!(
+            actions.close,
+            vec![Close {
+                number: 7,
+                fingerprint: fingerprint("gone")
+            }]
+        );
         assert!(actions.create.is_empty());
     }
 
     #[test]
     fn noop_when_marker_matches_issue() {
         let f = vec![found("same")];
-        let existing = vec![ExistingIssue { number: 1, fingerprint: fingerprint("same") }];
+        let existing = vec![ExistingIssue {
+            number: 1,
+            fingerprint: fingerprint("same"),
+        }];
         let actions = plan(&f, &existing);
         assert!(actions.create.is_empty());
         assert!(actions.close.is_empty());

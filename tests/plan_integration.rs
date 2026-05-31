@@ -25,9 +25,12 @@ fn plan_creates_and_closes() {
     let status = Command::new(env!("CARGO_BIN_EXE_0jot"))
         .args([
             "plan",
-            "--repo", repo.path().to_str().unwrap(),
-            "--issues", issues.to_str().unwrap(),
-            "--out", out.to_str().unwrap(),
+            "--repo",
+            repo.path().to_str().unwrap(),
+            "--issues",
+            issues.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
         ])
         .status()
         .unwrap();

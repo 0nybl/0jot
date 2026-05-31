@@ -17,7 +17,10 @@ mod tests {
 
     #[test]
     fn whitespace_is_normalized() {
-        assert_eq!(fingerprint("fix   the\tthing"), fingerprint("fix the thing"));
+        assert_eq!(
+            fingerprint("fix   the\tthing"),
+            fingerprint("fix the thing")
+        );
     }
 
     #[test]
