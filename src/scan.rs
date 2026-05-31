@@ -1,3 +1,4 @@
+use crate::ignore::Ignore;
 use crate::marker::{self, Marker};
 use std::path::Path;
 
@@ -10,13 +11,14 @@ pub struct Found {
 const SKIP_DIRS: [&str; 3] = [".git", "target", "node_modules"];
 
 pub fn scan(root: &Path) -> Vec<Found> {
+    let ignore = Ignore::load(root);
     let mut out = Vec::new();
-    walk(root, root, &mut out);
+    walk(root, root, &ignore, &mut out);
     out.sort_by(|a, b| (&a.file, a.marker.line).cmp(&(&b.file, b.marker.line)));
     out
 }
 
-fn walk(root: &Path, dir: &Path, out: &mut Vec<Found>) {
+fn walk(root: &Path, dir: &Path, ignore: &Ignore, out: &mut Vec<Found>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -29,7 +31,7 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<Found>) {
             if SKIP_DIRS.contains(&name.as_ref()) {
                 continue;
             }
-            walk(root, &path, out);
+            walk(root, &path, ignore, out);
         } else {
             let bytes = match std::fs::read(&path) {
                 Ok(b) => b,
@@ -44,6 +46,9 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<Found>) {
                 .unwrap_or(&path)
                 .to_string_lossy()
                 .replace('\\', "/");
+            if ignore.is_ignored(&rel) {
+                continue;
+            }
             for m in marker::parse(&text) {
                 out.push(Found {
                     marker: m,
@@ -63,6 +68,17 @@ mod tests {
         let p = dir.join(rel);
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, body).unwrap();
+    }
+
+    #[test]
+    fn respects_0jotignore() {
+        let root = tempfile::tempdir().unwrap();
+        write(root.path(), "src/a.rs", b"// @todo: keep\n");
+        write(root.path(), "README.md", b"// @todo: drop me\n");
+        write(root.path(), ".0jotignore", b"*.md\n");
+        let found = scan(root.path());
+        let titles: Vec<&str> = found.iter().map(|f| f.marker.title.as_str()).collect();
+        assert_eq!(titles, vec!["keep"]);
     }
 
     #[test]
