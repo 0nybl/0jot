@@ -1,0 +1,117 @@
+#[derive(Debug, PartialEq, Clone)]
+pub struct Marker {
+    pub title: String,
+    pub body: String,
+    pub line: usize,
+}
+
+const PREFIXES: [&str; 6] = ["//", "/*", "#", "*", ";", "--"];
+
+/// Returns the text following a leading comment prefix, or None if the line is
+/// not a comment. The returned slice keeps the comment's internal indentation.
+fn comment_rest(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    for p in PREFIXES {
+        if let Some(rest) = trimmed.strip_prefix(p) {
+            return Some(rest);
+        }
+    }
+    None
+}
+
+fn indent(s: &str) -> usize {
+    s.len() - s.trim_start().len()
+}
+
+pub fn parse(text: &str) -> Vec<Marker> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        let Some(rest) = comment_rest(lines[i]) else {
+            i += 1;
+            continue;
+        };
+        let Some(after) = rest.trim_start().strip_prefix("@todo:") else {
+            i += 1;
+            continue;
+        };
+        let title = after.trim().to_string();
+        if title.is_empty() {
+            i += 1;
+            continue;
+        }
+        let marker_indent = indent(rest);
+        let mut body_lines = Vec::new();
+        let mut j = i + 1;
+        while j < lines.len() {
+            match comment_rest(lines[j]) {
+                Some(r) if indent(r) > marker_indent => {
+                    body_lines.push(r.trim().to_string());
+                    j += 1;
+                }
+                _ => break,
+            }
+        }
+        out.push(Marker {
+            title,
+            body: body_lines.join("\n"),
+            line: i + 1,
+        });
+        i = j;
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn title_only() {
+        let m = parse("// @todo: do the thing\n");
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].title, "do the thing");
+        assert_eq!(m[0].body, "");
+        assert_eq!(m[0].line, 1);
+    }
+
+    #[test]
+    fn title_with_body() {
+        let src = "fn x() {}\n// @todo: fix x\n//   it is broken\n//   really broken\nlet y = 1;\n";
+        let m = parse(src);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].title, "fix x");
+        assert_eq!(m[0].body, "it is broken\nreally broken");
+        assert_eq!(m[0].line, 2);
+    }
+
+    #[test]
+    fn plain_following_comment_is_not_body() {
+        let src = "// @todo: a\n// not indented, not body\n";
+        let m = parse(src);
+        assert_eq!(m[0].body, "");
+        assert_eq!(m.len(), 1);
+    }
+
+    #[test]
+    fn empty_title_ignored() {
+        let m = parse("// @todo:   \n");
+        assert!(m.is_empty());
+    }
+
+    #[test]
+    fn hash_prefix_marker() {
+        let m = parse("# @todo: shell todo\n");
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].title, "shell todo");
+    }
+
+    #[test]
+    fn multiple_markers() {
+        let m = parse("// @todo: one\ncode\n// @todo: two\n");
+        assert_eq!(m.len(), 2);
+        assert_eq!(m[1].title, "two");
+        assert_eq!(m[1].line, 3);
+    }
+}
