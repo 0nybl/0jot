@@ -1,0 +1,3 @@
+# 0jot scans source, not docs
+*.md
+docs/
